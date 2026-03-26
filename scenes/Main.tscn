@@ -67,6 +67,12 @@ text = ""
 autowrap_mode = 3
 horizontal_alignment = 1
 
+[node name="BattleFeedbackLabel" type="Label" parent="CenterContainer/VBoxContainer"]
+layout_mode = 2
+text = ""
+autowrap_mode = 3
+horizontal_alignment = 1
+
 [node name="ResourceLabel" type="Label" parent="CenterContainer/VBoxContainer"]
 layout_mode = 2
 text = ""
@@ -169,6 +175,14 @@ text = "导出战斗Top3（S2-N1）"
 [node name="ReplayRecentButton" type="Button" parent="CenterContainer/VBoxContainer"]
 layout_mode = 2
 text = "一键回放最近一局（S3-N1）"
+
+[node name="SaveSnapshotButton" type="Button" parent="CenterContainer/VBoxContainer"]
+layout_mode = 2
+text = "保存运行时快照（S4-M2）"
+
+[node name="LoadSnapshotButton" type="Button" parent="CenterContainer/VBoxContainer"]
+layout_mode = 2
+text = "加载运行时快照（S4-M2）"
 
 [node name="HintLabel" type="Label" parent="CenterContainer/VBoxContainer"]
 layout_mode = 2

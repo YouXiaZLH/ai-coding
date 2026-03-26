@@ -43,6 +43,12 @@ layout_mode = 2
 text = ""
 horizontal_alignment = 1
 
+[node name="S4M3PipelineLabel" type="Label" parent="CenterContainer/VBoxContainer"]
+layout_mode = 2
+text = ""
+autowrap_mode = 3
+horizontal_alignment = 1
+
 [node name="SettleButton" type="Button" parent="CenterContainer/VBoxContainer"]
 layout_mode = 2
 text = "领取本局结算点数"

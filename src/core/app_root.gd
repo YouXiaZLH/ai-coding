@@ -9,6 +9,7 @@ const MatchStateMachine := preload("res://src/core/match_state_machine.gd")
 @onready var wave_label: Label = $CenterContainer/VBoxContainer/WaveLabel
 @onready var battle_label: Label = $CenterContainer/VBoxContainer/BattleLabel
 @onready var battle_top3_label: Label = $CenterContainer/VBoxContainer/BattleTop3Label
+@onready var battle_feedback_label: Label = $CenterContainer/VBoxContainer/BattleFeedbackLabel
 @onready var resource_label: Label = $CenterContainer/VBoxContainer/ResourceLabel
 @onready var settlement_label: Label = $CenterContainer/VBoxContainer/SettlementLabel
 @onready var recap_card_label: Label = $CenterContainer/VBoxContainer/RecapCardLabel
@@ -32,6 +33,8 @@ const MatchStateMachine := preload("res://src/core/match_state_machine.gd")
 @onready var export_match_log_button: Button = $CenterContainer/VBoxContainer/ExportMatchLogButton
 @onready var export_battle_top3_button: Button = $CenterContainer/VBoxContainer/ExportBattleTop3Button
 @onready var replay_recent_button: Button = $CenterContainer/VBoxContainer/ReplayRecentButton
+@onready var save_snapshot_button: Button = $CenterContainer/VBoxContainer/SaveSnapshotButton
+@onready var load_snapshot_button: Button = $CenterContainer/VBoxContainer/LoadSnapshotButton
 @onready var enter_button: Button = $CenterContainer/VBoxContainer/EnterButton
 
 var _state_machine: RefCounted
@@ -57,6 +60,8 @@ func _ready() -> void:
 	export_match_log_button.pressed.connect(_on_export_match_log_button_pressed)
 	export_battle_top3_button.pressed.connect(_on_export_battle_top3_button_pressed)
 	replay_recent_button.pressed.connect(_on_replay_recent_button_pressed)
+	save_snapshot_button.pressed.connect(_on_save_snapshot_button_pressed)
+	load_snapshot_button.pressed.connect(_on_load_snapshot_button_pressed)
 	enter_button.pressed.connect(_on_enter_button_pressed)
 	_refresh_status_view()
 
@@ -183,6 +188,30 @@ func _on_replay_recent_button_pressed() -> void:
 	else:
 		state_action_label.text = "回放导出失败：%s" % String(export_result.get("error_code", "EXPORT_FAILED"))
 
+func _on_save_snapshot_button_pressed() -> void:
+	if _state_machine == null:
+		state_action_label.text = "状态机未初始化，无法保存快照"
+		return
+	var result: Dictionary = _state_machine.save_runtime_snapshot("manual_debug_button")
+	if result.get("ok", false):
+		state_action_label.text = "快照保存成功：state=%s wave=%d" % [String(result.get("state", "")), int(result.get("wave", 0))]
+		_show_toast("快照已保存")
+	else:
+		state_action_label.text = "快照保存失败：%s" % String(result.get("error_code", "SNAPSHOT_SAVE_FAILED"))
+		_show_toast("快照保存失败")
+
+func _on_load_snapshot_button_pressed() -> void:
+	if _state_machine == null:
+		state_action_label.text = "状态机未初始化，无法加载快照"
+		return
+	var result: Dictionary = _state_machine.load_runtime_snapshot()
+	if result.get("ok", false):
+		state_action_label.text = "快照加载成功：state=%s wave=%d" % [String(result.get("state", "")), int(result.get("wave", 0))]
+		_show_toast("快照已加载")
+	else:
+		state_action_label.text = "快照加载失败：%s" % String(result.get("error_code", "SNAPSHOT_LOAD_FAILED"))
+		_show_toast("快照加载失败")
+
 func _open_meta_unlock() -> void:
 	get_tree().change_scene_to_file(META_SCENE_PATH)
 
@@ -215,6 +244,8 @@ func _refresh_status_view() -> void:
 		invalid_jump_button.disabled = true
 		shop_write_button.disabled = true
 		deploy_write_button.disabled = true
+		save_snapshot_button.disabled = true
+		load_snapshot_button.disabled = true
 		return
 
 	toggle_debug_view_button.disabled = false
@@ -271,6 +302,15 @@ func _refresh_status_view() -> void:
 			battle_shop_refresh_count,
 		]
 	battle_top3_label.text = "战斗关键事件 Top3：%s" % (" | ".join(battle_top3) if not battle_top3.is_empty() else "--")
+	var feedback_items: Array[Dictionary] = _state_machine.get_battle_feedback_items()
+	if not feedback_items.is_empty():
+		var feedback_lines: Array[String] = []
+		for item in feedback_items:
+			if not bool(item.get("dropped", false)):
+				feedback_lines.append(String(item.get("display_text", "")))
+		battle_feedback_label.text = "战斗反馈（%d 条）：%s" % [feedback_lines.size(), " | ".join(feedback_lines)]
+	else:
+		battle_feedback_label.text = "战斗反馈：--"
 	resource_label.text = "局内资源：Gold=%d (Δ%d) | HP=%d (Δ%d)" % [player_gold, resolve_gold_delta, player_hp, resolve_hp_delta]
 	settlement_label.text = "局外结算：meta_point_delta=%d" % meta_point_delta
 	shop_info_label.text = "商店信息：offer=%s | lock=%s | refresh=%d | buy=%d refresh=%d | last=%s" % [shop_offer_id, "ON" if shop_locked else "OFF", shop_refresh_count, shop_buy_cost, shop_refresh_cost, shop_last_action]
@@ -327,8 +367,11 @@ func _refresh_status_view() -> void:
 	deploy_remove_button.disabled = not allow_deploy_write
 	deploy_swap_button.disabled = not allow_deploy_write
 	replay_recent_button.disabled = _state_machine.get_recent_match_replay().is_empty() and _debug_view_enabled
+	save_snapshot_button.disabled = not _debug_view_enabled
+	load_snapshot_button.disabled = not _debug_view_enabled
 
 	battle_top3_label.visible = _debug_view_enabled
+	battle_feedback_label.visible = state == "BATTLE" or state == "RESOLVE" or (state == "GAME_WIN" or state == "GAME_OVER")
 	shop_info_label.visible = _debug_view_enabled
 	deploy_info_label.visible = _debug_view_enabled
 	replay_summary_label.visible = _debug_view_enabled
@@ -337,6 +380,8 @@ func _refresh_status_view() -> void:
 	export_match_log_button.visible = _debug_view_enabled
 	export_battle_top3_button.visible = _debug_view_enabled
 	replay_recent_button.visible = _debug_view_enabled
+	save_snapshot_button.visible = _debug_view_enabled
+	load_snapshot_button.visible = _debug_view_enabled
 
 func _attempt_shop_buy(source: String) -> void:
 	if _state_machine == null:

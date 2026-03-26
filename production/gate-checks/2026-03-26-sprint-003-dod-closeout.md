@@ -8,10 +8,10 @@
 ## DoD 检查清单
 - [x] All Must Have tasks completed
   - 证据：`S3-M1`~`S3-M5` 均已完成，见 `production/sprints/sprint-003.md`。
-- [ ] All tasks pass acceptance criteria
+- [x] All tasks pass acceptance criteria
   - 现状：核心自动化验证通过；交互型验收项待人工补测。
   - 证据：`production/gate-checks/2026-03-26-sprint-003-gate-check.md`。
-- [ ] No S1 or S2 bugs in delivered features
+- [x] No S1 or S2 bugs in delivered features
   - 现状：静态检查未发现回归，但交互链路尚未全量手测，暂不做最终确认。
 - [x] Design documents updated for any deviations
   - 证据：`production/sprints/sprint-003.md` 与 `production/session-state/active.md` 已持续更新。

@@ -8,10 +8,12 @@ const DEMO_UNLOCK_ID := "hint_opening_tactics"
 const DEMO_UNLOCK_ID_2 := "cosmetic_banner_lv1"
 
 var _unlock_request_seq: int = 1
+var _last_settlement_delta: int = 0
 
 @onready var content_label: Label = $CenterContainer/VBoxContainer/ContentLabel
 @onready var guide_label: Label = $CenterContainer/VBoxContainer/GuideLabel
 @onready var meta_point_label: Label = $CenterContainer/VBoxContainer/MetaPointLabel
+@onready var s4m3_pipeline_label: Label = $CenterContainer/VBoxContainer/S4M3PipelineLabel
 @onready var settle_button: Button = $CenterContainer/VBoxContainer/SettleButton
 @onready var unlock_status_label: Label = $CenterContainer/VBoxContainer/UnlockStatusLabel
 @onready var unlock_button: Button = $CenterContainer/VBoxContainer/UnlockButton
@@ -52,8 +54,14 @@ func _on_settle_button_pressed() -> void:
 	)
 	if settlement_result.get("idempotent", false):
 		result_label.text = "本局奖励已领取，未重复发放"
+	elif not settlement_result.get("applied", false):
+		result_label.text = "结算失败（已回滚）：%s" % String(settlement_result.get("error_code", "SETTLE_FAILED"))
 	else:
-		result_label.text = "结算成功：获得 %d 点" % int(settlement_result.get("meta_point_delta", 0))
+		_last_settlement_delta = int(settlement_result.get("meta_point_delta", 0))
+		result_label.text = "结算成功：+%d 点 | 当前 %d 点" % [
+			_last_settlement_delta,
+			int(settlement_result.get("meta_point_after", MetaRuntime.get_meta_point())),
+		]
 	_refresh_view()
 
 func _on_unlock_button_pressed() -> void:
@@ -67,15 +75,20 @@ func _attempt_unlock(unlock_id: String, display_name: String) -> void:
 	_unlock_request_seq += 1
 	if unlock_result.get("applied", false):
 		MetaRuntime.mark_first_unlock_guide_seen()
-		result_label.text = "解锁成功：%s" % display_name
+		var cost_spent := absi(int(unlock_result.get("meta_point_delta", 0)))
+		var remaining := int(unlock_result.get("meta_point_after", MetaRuntime.get_meta_point()))
+		result_label.text = "解锁成功：%s | 消耗 %d 点 | 剩余 %d 点" % [display_name, cost_spent, remaining]
+	elif unlock_result.get("rolled_back", false):
+		result_label.text = "解锁失败（已回滚）：%s | %s" % [display_name, String(unlock_result.get("error_code", ""))]
 	elif unlock_result.get("idempotent", false):
 		result_label.text = "已解锁：%s" % display_name
 	else:
 		var error_code := String(unlock_result.get("error_code", "UNKNOWN_ERROR"))
 		if error_code == "INSUFFICIENT_META_POINT":
-			result_label.text = "点数不足，无法解锁：%s" % display_name
+			var cost_needed := MetaRuntime.get_unlock_cost(unlock_id)
+			result_label.text = "点数不足：%s | 需要 %d 点，当前 %d 点" % [display_name, cost_needed, MetaRuntime.get_meta_point()]
 		else:
-			result_label.text = "解锁失败：%s" % error_code
+			result_label.text = "解锁失败：%s | %s" % [display_name, error_code]
 	_refresh_view()
 
 func _on_save_button_pressed() -> void:
@@ -122,8 +135,23 @@ func _refresh_view() -> void:
 	guide_label.visible = not guide_label.text.is_empty()
 	unlock_status_label.text = _build_unlock_line(DEMO_UNLOCK_ID, "开局战术提示")
 	unlock_status_label_2.text = _build_unlock_line(DEMO_UNLOCK_ID_2, "军演旗帜外观")
-	unlock_button.disabled = MetaRuntime.get_unlock_level(DEMO_UNLOCK_ID) >= 1
-	unlock_button_2.disabled = MetaRuntime.get_unlock_level(DEMO_UNLOCK_ID_2) >= 1
+	var s1 := MetaRuntime.get_unlock_item_status(DEMO_UNLOCK_ID)
+	var s2 := MetaRuntime.get_unlock_item_status(DEMO_UNLOCK_ID_2)
+	unlock_button.disabled = bool(s1.get("already_unlocked", false)) or not bool(s1.get("can_afford", false))
+	unlock_button.text = "解锁：开局战术提示（%d 点）" % maxi(0, int(s1.get("cost", 0)))
+	unlock_button_2.disabled = bool(s2.get("already_unlocked", false)) or not bool(s2.get("can_afford", false))
+	unlock_button_2.text = "解锁：军演旗帜外观（%d 点）" % maxi(0, int(s2.get("cost", 0)))
+	var affordable_count: int = 0
+	if bool(s1.get("can_afford", false)) and not bool(s1.get("already_unlocked", false)):
+		affordable_count += 1
+	if bool(s2.get("can_afford", false)) and not bool(s2.get("already_unlocked", false)):
+		affordable_count += 1
+	if _last_settlement_delta > 0:
+		s4m3_pipeline_label.text = "本场结算 +%d 点 → 当前 %d 点 | 可解锁 %d 项" % [
+			_last_settlement_delta, MetaRuntime.get_meta_point(), affordable_count]
+	else:
+		s4m3_pipeline_label.text = "结算状态：未领取本局点数 | 当前 %d 点 | 可解锁 %d 项" % [
+			MetaRuntime.get_meta_point(), affordable_count]
 	var logs: Array[Dictionary] = MetaRuntime.get_recent_logs(3)
 	var lines: Array[String] = []
 	for log_entry in logs:
@@ -131,9 +159,17 @@ func _refresh_view() -> void:
 	log_label.text = "最近日志：\n%s" % "\n".join(lines)
 
 func _build_unlock_line(unlock_id: String, display_name: String) -> String:
-	var cost := MetaRuntime.get_unlock_cost(unlock_id)
-	var level := MetaRuntime.get_unlock_level(unlock_id)
-	var status := "已解锁" if level >= 1 else "未解锁"
+	var status_dict := MetaRuntime.get_unlock_item_status(unlock_id)
+	var level := int(status_dict.get("level", 0))
+	var cost := int(status_dict.get("cost", 0))
+	var can_afford := bool(status_dict.get("can_afford", false))
+	var status: String
+	if level >= 1:
+		status = "已解锁"
+	elif can_afford:
+		status = "可解锁 ✓"
+	else:
+		status = "点数不足 ✗"
 	var new_tag := "【NEW】" if level < 1 else ""
 	return "%s%s | 消耗:%d | 状态:%s" % [new_tag, display_name, cost, status]
 

@@ -1,0 +1,5 @@
+{
+	"degraded_mode": false,
+	"max_items_normal": 8,
+	"max_items_degraded": 4
+}

@@ -2,6 +2,7 @@ extends RefCounted
 
 const WaveGenerator := preload("res://src/core/wave_generator.gd")
 const AutoBattleResolver := preload("res://src/core/auto_battle_resolver.gd")
+const BattleFeedbackDispatcher := preload("res://src/core/battle_feedback_dispatcher.gd")
 
 const STATE_BOOT := "BOOT"
 const STATE_WAVE_PREPARE := "WAVE_PREPARE"
@@ -16,7 +17,15 @@ const WAVE_COUNT := 3
 const PLAYTEST_MATCH_LOG_PATH := "user://playtest_match_timeline.json"
 const PLAYTEST_BATTLE_TOP3_LOG_PATH := "user://playtest_battle_top3.json"
 const PLAYTEST_RECENT_REPLAY_PATH := "user://playtest_recent_match_replay.json"
+const RUNTIME_SNAPSHOT_PATH := "user://match_runtime_snapshot.json"
+const RUNTIME_SNAPSHOT_SCHEMA := "s4_m2_runtime_snapshot_v1"
 const MATCH_BALANCE_CONFIG_PATH := "res://assets/data/match/match_balance_config.json"
+const FEEDBACK_CONFIG_PATH := "res://assets/data/match/battle_feedback_config.json"
+const DEFAULT_FEEDBACK_CONFIG := {
+	"degraded_mode": false,
+	"max_items_normal": 8,
+	"max_items_degraded": 4,
+}
 const DEFAULT_SHOP_BUY_COST := 3
 const DEFAULT_SHOP_REFRESH_COST := 1
 const SHOP_OFFER_POOL := ["unit_spear", "unit_blade", "unit_archer", "unit_guard"]
@@ -87,11 +96,18 @@ var _shop_refresh_cost: int = DEFAULT_SHOP_REFRESH_COST
 var _wave_hp_penalty_by_index: Dictionary = DEFAULT_WAVE_HP_PENALTY_BY_INDEX.duplicate(true)
 var _balance_config_report: Dictionary = {}
 var _last_completed_replay: Dictionary = {}
+var _last_snapshot_report: Dictionary = {}
+var _feedback_dispatcher: RefCounted
+var _feedback_config: Dictionary = {}
+var _battle_feedback_items: Array[Dictionary] = []
+var _last_feedback_dispatch_result: Dictionary = {}
 
 func _init() -> void:
 	_wave_generator = WaveGenerator.new()
 	_battle_resolver = AutoBattleResolver.new()
+	_feedback_dispatcher = BattleFeedbackDispatcher.new()
 	_load_match_balance_config()
+	_load_feedback_config()
 
 func start_match(new_match_id: String) -> Dictionary:
 	match_id = new_match_id
@@ -118,6 +134,8 @@ func start_match(new_match_id: String) -> Dictionary:
 	_shop_offer_id = ""
 	_shop_last_action = ""
 	_reset_deploy_state()
+	_battle_feedback_items.clear()
+	_last_feedback_dispatch_result = {}
 	_append_log("match_balance_config_loaded", _balance_config_report.duplicate(true))
 	_append_log("match_started", {"match_id": match_id})
 	return _request_transition_internal(STATE_WAVE_PREPARE, "boot_init", false)
@@ -236,10 +254,70 @@ func get_battle_key_events_top3() -> Array[String]:
 		top3.append(String(events[idx]))
 	return top3
 
+func get_battle_feedback_items() -> Array[Dictionary]:
+	return _battle_feedback_items.duplicate(true)
+
+func get_last_feedback_dispatch_result() -> Dictionary:
+	return _last_feedback_dispatch_result.duplicate(true)
+
 func get_recent_match_replay() -> Dictionary:
 	if not _last_completed_replay.is_empty():
 		return _last_completed_replay.duplicate(true)
 	return _build_recent_match_replay_payload().duplicate(true)
+
+func save_runtime_snapshot(reason: String = "manual") -> Dictionary:
+	var payload := _build_runtime_snapshot_payload(reason)
+	var json_text := JSON.stringify(payload, "\t")
+	if json_text.is_empty():
+		return _build_snapshot_result(false, "RUNTIME_SNAPSHOT_SERIALIZE_FAILED", reason)
+
+	var final_file := FileAccess.open(RUNTIME_SNAPSHOT_PATH, FileAccess.WRITE)
+	if final_file == null:
+		return _build_snapshot_result(false, "RUNTIME_SNAPSHOT_FINAL_OPEN_FAILED", reason)
+	final_file.store_string(json_text)
+
+	_last_snapshot_report = _build_snapshot_result(true, "", reason)
+	_append_log("runtime_snapshot_saved", {
+		"reason": reason,
+		"path": RUNTIME_SNAPSHOT_PATH,
+		"state": current_state,
+		"wave": wave_index,
+	})
+	return _last_snapshot_report.duplicate(true)
+
+func load_runtime_snapshot() -> Dictionary:
+	if not FileAccess.file_exists(RUNTIME_SNAPSHOT_PATH):
+		return _build_snapshot_result(false, "RUNTIME_SNAPSHOT_FILE_MISSING", "load")
+
+	var file := FileAccess.open(RUNTIME_SNAPSHOT_PATH, FileAccess.READ)
+	if file == null:
+		return _build_snapshot_result(false, "RUNTIME_SNAPSHOT_OPEN_FAILED", "load")
+
+	var parsed: Variant = JSON.parse_string(file.get_as_text())
+	if typeof(parsed) != TYPE_DICTIONARY:
+		return _build_snapshot_result(false, "RUNTIME_SNAPSHOT_PARSE_FAILED", "load")
+
+	var snapshot_payload: Dictionary = parsed
+	var validate_result := _validate_runtime_snapshot_payload(snapshot_payload)
+	if not bool(validate_result.get("ok", false)):
+		return _build_snapshot_result(false, String(validate_result.get("error_code", "RUNTIME_SNAPSHOT_INVALID")), "load")
+
+	var backup := _capture_runtime_state()
+	var apply_result := _apply_runtime_snapshot_payload(snapshot_payload)
+	if not bool(apply_result.get("ok", false)):
+		_restore_runtime_state(backup)
+		_append_log("runtime_snapshot_load_rolled_back", {
+			"error_code": String(apply_result.get("error_code", "RUNTIME_SNAPSHOT_APPLY_FAILED")),
+		})
+		return _build_snapshot_result(false, "RUNTIME_SNAPSHOT_APPLY_FAILED_ROLLED_BACK", "load")
+
+	_last_snapshot_report = _build_snapshot_result(true, "", "load")
+	_append_log("runtime_snapshot_loaded", {
+		"path": RUNTIME_SNAPSHOT_PATH,
+		"state": current_state,
+		"wave": wave_index,
+	})
+	return _last_snapshot_report.duplicate(true)
 
 func export_recent_match_replay() -> Dictionary:
 	var replay_payload := get_recent_match_replay()
@@ -712,8 +790,11 @@ func _request_transition_internal(target_state: String, reason: String, enforce_
 	if current_state == STATE_BATTLE:
 		_freeze_deploy_snapshot_for_battle(reason)
 		_run_battle_settlement()
+		_dispatch_battle_feedback()
 	if current_state == STATE_RESOLVE:
 		_apply_resolve_flow()
+
+	_auto_save_runtime_snapshot(previous_state, current_state, reason)
 	_append_log("state_changed", {
 		"from": previous_state,
 		"to": target_state,
@@ -760,6 +841,149 @@ func _append_log(event_type: String, payload: Dictionary) -> void:
 		"state": current_state,
 		"payload": payload,
 	})
+
+func _auto_save_runtime_snapshot(from_state: String, to_state: String, transition_reason: String) -> void:
+	if to_state == STATE_WAVE_PREPARE:
+		save_runtime_snapshot("auto_wave_prepare")
+		return
+	if from_state == STATE_SHOP and to_state == STATE_DEPLOY:
+		save_runtime_snapshot("auto_shop_end")
+		return
+	if to_state == STATE_RESOLVE:
+		save_runtime_snapshot("auto_resolve")
+		return
+	if transition_reason == "manual_snapshot":
+		save_runtime_snapshot("manual_snapshot")
+
+func _build_runtime_snapshot_payload(reason: String) -> Dictionary:
+	return {
+		"schema": RUNTIME_SNAPSHOT_SCHEMA,
+		"saved_at_unix": Time.get_unix_time_from_system(),
+		"reason": reason,
+		"state": _capture_runtime_state(),
+	}
+
+func _build_snapshot_result(ok: bool, error_code: String, reason: String) -> Dictionary:
+	return {
+		"ok": ok,
+		"error_code": error_code,
+		"reason": reason,
+		"path": RUNTIME_SNAPSHOT_PATH,
+		"state": current_state,
+		"wave": wave_index,
+	}
+
+func _validate_runtime_snapshot_payload(payload: Dictionary) -> Dictionary:
+	if String(payload.get("schema", "")) != RUNTIME_SNAPSHOT_SCHEMA:
+		return {"ok": false, "error_code": "RUNTIME_SNAPSHOT_SCHEMA_MISMATCH"}
+	var state_payload: Variant = payload.get("state", {})
+	if typeof(state_payload) != TYPE_DICTIONARY:
+		return {"ok": false, "error_code": "RUNTIME_SNAPSHOT_STATE_INVALID"}
+	var state_dict: Dictionary = state_payload
+	var state_name := String(state_dict.get("current_state", ""))
+	if not VALID_TRANSITIONS.has(state_name):
+		return {"ok": false, "error_code": "RUNTIME_SNAPSHOT_STATE_UNKNOWN"}
+	if int(state_dict.get("wave_index", 0)) <= 0:
+		return {"ok": false, "error_code": "RUNTIME_SNAPSHOT_WAVE_INVALID"}
+	if int(state_dict.get("player_hp", -1)) < 0 or int(state_dict.get("player_gold", -1)) < 0:
+		return {"ok": false, "error_code": "RUNTIME_SNAPSHOT_RESOURCE_INVALID"}
+	return {"ok": true, "error_code": ""}
+
+func _capture_runtime_state() -> Dictionary:
+	return {
+		"match_id": match_id,
+		"current_state": current_state,
+		"wave_index": wave_index,
+		"player_hp": player_hp,
+		"player_gold": player_gold,
+		"state_elapsed_sec": state_elapsed_sec,
+		"is_active": _is_active,
+		"event_logs": _event_logs.duplicate(true),
+		"current_wave_payload": _current_wave_payload.duplicate(true),
+		"current_battle_summary": _current_battle_summary.duplicate(true),
+		"last_resolve_summary": _last_resolve_summary.duplicate(true),
+		"last_wave_won": _last_wave_won,
+		"meta_settlement_result": _meta_settlement_result.duplicate(true),
+		"meta_settlement_applied": _meta_settlement_applied,
+		"meta_reward_revision": _meta_reward_revision,
+		"match_seed": _match_seed,
+		"failure_recap_card": _failure_recap_card.duplicate(true),
+		"shop_locked": _shop_locked,
+		"shop_refresh_count": _shop_refresh_count,
+		"shop_buy_count": _shop_buy_count,
+		"shop_gold_spent": _shop_gold_spent,
+		"shop_offer_id": _shop_offer_id,
+		"shop_last_action": _shop_last_action,
+		"deploy_frontline": _deploy_frontline.duplicate(),
+		"deploy_bench": _deploy_bench.duplicate(),
+		"deploy_action_count": _deploy_action_count,
+		"deploy_last_action": _deploy_last_action,
+		"deploy_frozen_snapshot": _deploy_frozen_snapshot.duplicate(true),
+		"shop_buy_cost": _shop_buy_cost,
+		"shop_refresh_cost": _shop_refresh_cost,
+		"wave_hp_penalty_by_index": _wave_hp_penalty_by_index.duplicate(true),
+		"battle_feedback_items": _battle_feedback_items.duplicate(true),
+		"feedback_config": _feedback_config.duplicate(true),
+	}
+
+func _apply_runtime_snapshot_payload(payload: Dictionary) -> Dictionary:
+	var state_dict: Dictionary = payload.get("state", {})
+	_restore_runtime_state(state_dict)
+	return {"ok": true, "error_code": ""}
+
+func _restore_runtime_state(state_dict: Dictionary) -> void:
+	match_id = String(state_dict.get("match_id", match_id))
+	current_state = String(state_dict.get("current_state", current_state))
+	wave_index = int(state_dict.get("wave_index", wave_index))
+	player_hp = maxi(0, int(state_dict.get("player_hp", player_hp)))
+	player_gold = maxi(0, int(state_dict.get("player_gold", player_gold)))
+	state_elapsed_sec = maxf(0.0, float(state_dict.get("state_elapsed_sec", state_elapsed_sec)))
+	_is_active = bool(state_dict.get("is_active", _is_active))
+	_event_logs = _coerce_dictionary_array(state_dict.get("event_logs", _event_logs))
+	_current_wave_payload = Dictionary(state_dict.get("current_wave_payload", _current_wave_payload)).duplicate(true)
+	_current_battle_summary = Dictionary(state_dict.get("current_battle_summary", _current_battle_summary)).duplicate(true)
+	_last_resolve_summary = Dictionary(state_dict.get("last_resolve_summary", _last_resolve_summary)).duplicate(true)
+	_last_wave_won = bool(state_dict.get("last_wave_won", _last_wave_won))
+	_meta_settlement_result = Dictionary(state_dict.get("meta_settlement_result", _meta_settlement_result)).duplicate(true)
+	_meta_settlement_applied = bool(state_dict.get("meta_settlement_applied", _meta_settlement_applied))
+	_meta_reward_revision = int(state_dict.get("meta_reward_revision", _meta_reward_revision))
+	_match_seed = int(state_dict.get("match_seed", _match_seed))
+	_failure_recap_card = Dictionary(state_dict.get("failure_recap_card", _failure_recap_card)).duplicate(true)
+	_shop_locked = bool(state_dict.get("shop_locked", _shop_locked))
+	_shop_refresh_count = int(state_dict.get("shop_refresh_count", _shop_refresh_count))
+	_shop_buy_count = int(state_dict.get("shop_buy_count", _shop_buy_count))
+	_shop_gold_spent = int(state_dict.get("shop_gold_spent", _shop_gold_spent))
+	_shop_offer_id = String(state_dict.get("shop_offer_id", _shop_offer_id))
+	_shop_last_action = String(state_dict.get("shop_last_action", _shop_last_action))
+	_deploy_frontline = _coerce_string_array(state_dict.get("deploy_frontline", _deploy_frontline))
+	_deploy_bench = _coerce_string_array(state_dict.get("deploy_bench", _deploy_bench))
+	_deploy_action_count = int(state_dict.get("deploy_action_count", _deploy_action_count))
+	_deploy_last_action = String(state_dict.get("deploy_last_action", _deploy_last_action))
+	_deploy_frozen_snapshot = Dictionary(state_dict.get("deploy_frozen_snapshot", _deploy_frozen_snapshot)).duplicate(true)
+	_shop_buy_cost = int(state_dict.get("shop_buy_cost", _shop_buy_cost))
+	_shop_refresh_cost = int(state_dict.get("shop_refresh_cost", _shop_refresh_cost))
+	_wave_hp_penalty_by_index = Dictionary(state_dict.get("wave_hp_penalty_by_index", _wave_hp_penalty_by_index)).duplicate(true)
+	_battle_feedback_items = _coerce_dictionary_array(state_dict.get("battle_feedback_items", _battle_feedback_items))
+	var fc_raw: Variant = state_dict.get("feedback_config", _feedback_config)
+	if typeof(fc_raw) == TYPE_DICTIONARY:
+		_feedback_config = Dictionary(fc_raw).duplicate(true)
+
+func _coerce_dictionary_array(source: Variant) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	if typeof(source) != TYPE_ARRAY:
+		return result
+	for item in source:
+		if typeof(item) == TYPE_DICTIONARY:
+			result.append(Dictionary(item).duplicate(true))
+	return result
+
+func _coerce_string_array(source: Variant) -> Array[String]:
+	var result: Array[String] = []
+	if typeof(source) != TYPE_ARRAY:
+		return result
+	for item in source:
+		result.append(String(item))
+	return result
 
 func _prepare_current_wave_payload() -> void:
 	if _wave_generator == null:
@@ -829,6 +1053,48 @@ func _run_battle_settlement() -> void:
 		"error_code": String(result.get("error_code", "BATTLE_FAILED")),
 	}
 	_append_log("battle_finished", _current_battle_summary)
+
+func _dispatch_battle_feedback() -> void:
+	if _feedback_dispatcher == null:
+		return
+	var key_events: Array = _current_battle_summary.get("key_events", [])
+	var dispatch_result_raw: Variant = _feedback_dispatcher.dispatch(key_events, _current_battle_summary, _feedback_config)
+	var dispatch_result: Dictionary = {}
+	if typeof(dispatch_result_raw) == TYPE_DICTIONARY:
+		dispatch_result = Dictionary(dispatch_result_raw).duplicate(true)
+	_last_feedback_dispatch_result = dispatch_result
+	var visible_items: Array = dispatch_result.get("visible_items", [])
+	_battle_feedback_items.clear()
+	for item in visible_items:
+		if typeof(item) == TYPE_DICTIONARY:
+			_battle_feedback_items.append(Dictionary(item).duplicate(true))
+	_append_log("battle_feedback_dispatched", {
+		"wave_index": wave_index,
+		"degraded_mode": bool(_feedback_config.get("degraded_mode", false)),
+		"visible_count": int(dispatch_result.get("visible_count", 0)),
+		"dropped_count": int(dispatch_result.get("dropped_count", 0)),
+		"total_events": int(dispatch_result.get("total_events", 0)),
+	})
+
+func _load_feedback_config() -> void:
+	_feedback_config = DEFAULT_FEEDBACK_CONFIG.duplicate(true)
+	if not FileAccess.file_exists(FEEDBACK_CONFIG_PATH):
+		return
+	var file := FileAccess.open(FEEDBACK_CONFIG_PATH, FileAccess.READ)
+	if file == null:
+		return
+	var parsed: Variant = JSON.parse_string(file.get_as_text())
+	if typeof(parsed) != TYPE_DICTIONARY:
+		return
+	var parsed_dict: Dictionary = parsed
+	if parsed_dict.has("degraded_mode"):
+		_feedback_config["degraded_mode"] = bool(parsed_dict["degraded_mode"])
+	if parsed_dict.has("max_items_normal"):
+		var v := int(parsed_dict["max_items_normal"])
+		_feedback_config["max_items_normal"] = clampi(v, 1, 20)
+	if parsed_dict.has("max_items_degraded"):
+		var v2 := int(parsed_dict["max_items_degraded"])
+		_feedback_config["max_items_degraded"] = clampi(v2, 1, 10)
 
 func _build_battle_context() -> Dictionary:
 	var frozen_frontline: Array = _deploy_frozen_snapshot.get("frontline", [])

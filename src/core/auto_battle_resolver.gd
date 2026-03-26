@@ -83,7 +83,11 @@ func _calc_enemy_power(enemy_roster: Array, wave_index: int) -> float:
 func _build_key_events(winner: String, wave_index: int, wave_payload: Dictionary, battle_context: Dictionary) -> Array[String]:
 	var wave_type := String(wave_payload.get("wave_type", "normal"))
 	var events: Array[String] = []
+
+	# Engagement
 	events.append("wave_%d_%s_engaged" % [wave_index, wave_type])
+
+	# Deploy context
 	var frontline_count := int(battle_context.get("frontline_count", 0))
 	var shop_buy_count := int(battle_context.get("shop_buy_count", 0))
 	if frontline_count >= 3:
@@ -92,10 +96,44 @@ func _build_key_events(winner: String, wave_index: int, wave_payload: Dictionary
 		events.append("deploy_frontline_thin")
 	if shop_buy_count >= 2:
 		events.append("shop_reinforce_multiple")
+
+	# Hit events — always present
 	if winner == "ally":
+		events.append("ally_first_strike")
+		events.append("critical_hit_ally")
+	else:
+		events.append("enemy_first_strike")
+		events.append("critical_hit_enemy")
+
+	# Skill events
+	if wave_type == "boss":
+		events.append("skill_boss_mechanic")
+		events.append("skill_activated_ally")
+	elif wave_type == "elite":
+		events.append("skill_activated_ally")
+		events.append("skill_activated_enemy")
+	else:
+		if frontline_count >= 2:
+			events.append("skill_activated_ally")
+
+	# Synergy / bonding
+	var deploy_action_count := int(battle_context.get("deploy_action_count", 0))
+	if shop_buy_count >= 3 and frontline_count >= 2:
+		events.append("synergy_4_activated")
+	elif shop_buy_count >= 2 or frontline_count >= 2:
+		events.append("synergy_2_activated")
+	if deploy_action_count >= 4 and shop_buy_count >= 2:
+		events.append("bonding_chain_triggered")
+
+	# Kill / outcome events
+	if winner == "ally":
+		events.append("kill_confirmed_ally")
 		events.append("ally_frontline_holds")
 		events.append("enemy_core_unit_defeated")
 	else:
+		events.append("kill_confirmed_enemy")
 		events.append("enemy_pressure_overwhelms")
 		events.append("ally_backline_collapses")
+
 	return events
+

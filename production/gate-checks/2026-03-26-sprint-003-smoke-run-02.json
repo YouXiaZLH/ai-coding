@@ -1,0 +1,79 @@
+{
+	"cases": [
+		{
+			"id": "S3-SMOKE-01",
+			"note": "状态机启动",
+			"passed": true
+		},
+		{
+			"id": "S3-SMOKE-02",
+			"note": "SHOP 买入",
+			"passed": true
+		},
+		{
+			"id": "S3-SMOKE-03",
+			"note": "SHOP 刷新",
+			"passed": true
+		},
+		{
+			"id": "S3-SMOKE-04",
+			"note": "SHOP 锁定/解锁",
+			"passed": true
+		},
+		{
+			"id": "S3-SMOKE-05",
+			"note": "SHOP 非法阶段拒绝",
+			"passed": true
+		},
+		{
+			"id": "S3-SMOKE-06",
+			"note": "DEPLOY 上阵",
+			"passed": true
+		},
+		{
+			"id": "S3-SMOKE-07",
+			"note": "DEPLOY 下阵",
+			"passed": true
+		},
+		{
+			"id": "S3-SMOKE-08",
+			"note": "DEPLOY 换位",
+			"passed": true
+		},
+		{
+			"id": "S3-SMOKE-09",
+			"note": "DEPLOY 非法阶段拒绝",
+			"passed": true
+		},
+		{
+			"id": "S3-SMOKE-10",
+			"note": "BATTLE 上下文生效",
+			"passed": true
+		},
+		{
+			"id": "S3-SMOKE-11",
+			"note": "BATTLE->RESOLVE 资源结算",
+			"passed": true
+		},
+		{
+			"id": "S3-SMOKE-12",
+			"note": "RESOLVE 面板字段可读",
+			"passed": true
+		},
+		{
+			"id": "S3-SMOKE-13",
+			"note": "失败复盘卡生成",
+			"passed": true
+		},
+		{
+			"id": "S3-SMOKE-14",
+			"note": "日志导出",
+			"passed": true
+		}
+	],
+	"failed": 0,
+	"generated_at_unix": 1774503423.513,
+	"passed": 14,
+	"schema": "s3_smoke_run02_v1",
+	"total": 14
+}

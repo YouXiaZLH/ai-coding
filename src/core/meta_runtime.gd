@@ -64,6 +64,7 @@ func apply_end_of_match_settlement(match_id: String, reward_revision: int, is_wi
 	var meta_point_delta: int = maxi(0, base_reward) + win_bonus + wave_bonus
 	var meta_point_after: int = mini(meta_cap, meta_point_before + meta_point_delta)
 
+	var snapshot_before_settle: Dictionary = meta_progress.duplicate(true)
 	meta_progress["meta_point"] = meta_point_after
 
 	var result := {
@@ -79,7 +80,21 @@ func apply_end_of_match_settlement(match_id: String, reward_revision: int, is_wi
 	}
 	_applied_settlements[txn_key] = result
 	_append_log("meta_settlement_applied", result)
-	persist_meta_progress()
+	var settle_persist := persist_meta_progress()
+	if not bool(settle_persist.get("ok", false)):
+		meta_progress = snapshot_before_settle
+		_applied_settlements.erase(txn_key)
+		var settle_rollback := {
+			"txn_key": txn_key,
+			"applied": false,
+			"idempotent": false,
+			"meta_point_before": meta_point_before,
+			"meta_point_after": meta_point_before,
+			"meta_point_delta": 0,
+			"error_code": "PERSIST_FAILED_ROLLBACK",
+		}
+		_append_log("meta_settlement_rolled_back", settle_rollback)
+		return settle_rollback
 	return result
 
 func get_meta_point() -> int:
@@ -96,6 +111,31 @@ func get_unlock_cost(unlock_id: String) -> int:
 
 func has_unlock(unlock_id: String) -> bool:
 	return _unlock_catalog_by_id.has(unlock_id)
+
+func get_unlock_item_status(unlock_id: String) -> Dictionary:
+	var level := get_unlock_level(unlock_id)
+	var cost := get_unlock_cost(unlock_id)
+	var mp := get_meta_point()
+	var catalog_exists := has_unlock(unlock_id)
+	var prereq_ok := true
+	if catalog_exists:
+		var unlock_cfg: Dictionary = _unlock_catalog_by_id.get(unlock_id, {})
+		var prereq_ids: Array = unlock_cfg.get("prereq_ids", [])
+		var unlock_state := _get_unlock_state_dict()
+		for prereq in prereq_ids:
+			if int(unlock_state.get(String(prereq), 0)) <= 0:
+				prereq_ok = false
+				break
+	return {
+		"unlock_id": unlock_id,
+		"level": level,
+		"cost": cost,
+		"meta_point": mp,
+		"already_unlocked": level >= 1,
+		"catalog_exists": catalog_exists,
+		"prereq_ok": prereq_ok,
+		"can_afford": catalog_exists and prereq_ok and level < 1 and cost >= 0 and mp >= cost,
+	}
 
 func get_unlock_catalog_items() -> Array[Dictionary]:
 	var items: Array[Dictionary] = []
@@ -267,7 +307,25 @@ func unlock_item(player_id: String, unlock_id: String, request_seq: int, simulat
 	_applied_unlock_txns[txn_key] = applied_result
 	_append_log("meta_unlock_applied", applied_result)
 	_append_playtest_unlock_log(player_id, unlock_id, request_seq, applied_result, start_ticks_usec)
-	persist_meta_progress()
+	var unlock_persist := persist_meta_progress()
+	if not bool(unlock_persist.get("ok", false)):
+		meta_progress = snapshot_before
+		_applied_unlock_txns.erase(txn_key)
+		var real_rollback := {
+			"txn_key": txn_key,
+			"applied": false,
+			"idempotent": false,
+			"rolled_back": true,
+			"meta_point_before": meta_point_before,
+			"meta_point_after": meta_point_before,
+			"meta_point_delta": 0,
+			"unlock_id": unlock_id,
+			"unlock_revision": int(meta_progress.get("unlock_revision", 0)),
+			"error_code": "PERSIST_FAILED_ROLLBACK",
+		}
+		_append_log("meta_unlock_rolled_back", real_rollback)
+		_append_playtest_unlock_log(player_id, unlock_id, request_seq, real_rollback, start_ticks_usec)
+		return real_rollback
 	return applied_result
 
 func export_playtest_unlock_logs() -> Dictionary:
