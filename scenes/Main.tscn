@@ -1,0 +1,180 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://src/core/app_root.gd" id="1_hx4fc"]
+
+[node name="Main" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_hx4fc")
+
+[node name="CenterContainer" type="ScrollContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+horizontal_scroll_mode = 0
+
+[node name="VBoxContainer" type="VBoxContainer" parent="CenterContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 8
+
+[node name="TitleLabel" type="Label" parent="CenterContainer/VBoxContainer"]
+layout_mode = 2
+text = "九宫军演：群雄策\nSprint 2 State Machine"
+horizontal_alignment = 1
+
+[node name="StatusLabel" type="Label" parent="CenterContainer/VBoxContainer"]
+layout_mode = 2
+text = ""
+horizontal_alignment = 1
+
+[node name="StateLabel" type="Label" parent="CenterContainer/VBoxContainer"]
+layout_mode = 2
+text = ""
+horizontal_alignment = 1
+
+[node name="TimerLabel" type="Label" parent="CenterContainer/VBoxContainer"]
+layout_mode = 2
+text = ""
+horizontal_alignment = 1
+
+[node name="HudLabel" type="Label" parent="CenterContainer/VBoxContainer"]
+layout_mode = 2
+text = ""
+horizontal_alignment = 1
+
+[node name="WaveLabel" type="Label" parent="CenterContainer/VBoxContainer"]
+layout_mode = 2
+text = ""
+horizontal_alignment = 1
+
+[node name="BattleLabel" type="Label" parent="CenterContainer/VBoxContainer"]
+layout_mode = 2
+text = ""
+autowrap_mode = 3
+horizontal_alignment = 1
+
+[node name="BattleTop3Label" type="Label" parent="CenterContainer/VBoxContainer"]
+layout_mode = 2
+text = ""
+autowrap_mode = 3
+horizontal_alignment = 1
+
+[node name="ResourceLabel" type="Label" parent="CenterContainer/VBoxContainer"]
+layout_mode = 2
+text = ""
+horizontal_alignment = 1
+
+[node name="SettlementLabel" type="Label" parent="CenterContainer/VBoxContainer"]
+layout_mode = 2
+text = ""
+horizontal_alignment = 1
+
+[node name="ShopInfoLabel" type="Label" parent="CenterContainer/VBoxContainer"]
+layout_mode = 2
+text = ""
+autowrap_mode = 3
+horizontal_alignment = 1
+
+[node name="DeployInfoLabel" type="Label" parent="CenterContainer/VBoxContainer"]
+layout_mode = 2
+text = ""
+autowrap_mode = 3
+horizontal_alignment = 1
+
+[node name="RecapCardLabel" type="Label" parent="CenterContainer/VBoxContainer"]
+layout_mode = 2
+text = ""
+autowrap_mode = 3
+horizontal_alignment = 1
+
+[node name="ResolvePanelLabel" type="Label" parent="CenterContainer/VBoxContainer"]
+layout_mode = 2
+text = ""
+autowrap_mode = 3
+horizontal_alignment = 1
+
+[node name="ReplaySummaryLabel" type="Label" parent="CenterContainer/VBoxContainer"]
+layout_mode = 2
+text = ""
+autowrap_mode = 3
+horizontal_alignment = 1
+
+[node name="ToastLabel" type="Label" parent="CenterContainer/VBoxContainer"]
+visible = false
+layout_mode = 2
+text = ""
+horizontal_alignment = 1
+
+[node name="StateActionLabel" type="Label" parent="CenterContainer/VBoxContainer"]
+layout_mode = 2
+text = ""
+horizontal_alignment = 1
+
+[node name="StartMatchButton" type="Button" parent="CenterContainer/VBoxContainer"]
+layout_mode = 2
+text = "启动对局状态机"
+
+[node name="ConfirmStateButton" type="Button" parent="CenterContainer/VBoxContainer"]
+layout_mode = 2
+text = "确认当前阶段（手动推进）"
+
+[node name="ToggleDebugViewButton" type="Button" parent="CenterContainer/VBoxContainer"]
+layout_mode = 2
+text = "显示调试信息"
+
+[node name="InvalidJumpButton" type="Button" parent="CenterContainer/VBoxContainer"]
+layout_mode = 2
+text = "测试非法跳转（应拒绝）"
+
+[node name="ShopWriteButton" type="Button" parent="CenterContainer/VBoxContainer"]
+layout_mode = 2
+text = "商店写操作（仅SHOP可用）"
+
+[node name="ShopRefreshButton" type="Button" parent="CenterContainer/VBoxContainer"]
+layout_mode = 2
+text = "商店刷新（仅SHOP可用）"
+
+[node name="ShopLockButton" type="Button" parent="CenterContainer/VBoxContainer"]
+layout_mode = 2
+text = "商店锁定切换（仅SHOP可用）"
+
+[node name="DeployWriteButton" type="Button" parent="CenterContainer/VBoxContainer"]
+layout_mode = 2
+text = "部署上阵（仅DEPLOY可用）"
+
+[node name="DeployRemoveButton" type="Button" parent="CenterContainer/VBoxContainer"]
+layout_mode = 2
+text = "部署下阵（仅DEPLOY可用）"
+
+[node name="DeploySwapButton" type="Button" parent="CenterContainer/VBoxContainer"]
+layout_mode = 2
+text = "部署换位（仅DEPLOY可用）"
+
+[node name="ExportMatchLogButton" type="Button" parent="CenterContainer/VBoxContainer"]
+layout_mode = 2
+text = "导出对局日志（S2-S1）"
+
+[node name="ExportBattleTop3Button" type="Button" parent="CenterContainer/VBoxContainer"]
+layout_mode = 2
+text = "导出战斗Top3（S2-N1）"
+
+[node name="ReplayRecentButton" type="Button" parent="CenterContainer/VBoxContainer"]
+layout_mode = 2
+text = "一键回放最近一局（S3-N1）"
+
+[node name="HintLabel" type="Label" parent="CenterContainer/VBoxContainer"]
+layout_mode = 2
+text = "按 O 进入局外页；按 1/2/3/4 可测试商店买入/上阵/刷新/换位（调试信息可切换）"
+horizontal_alignment = 1
+
+[node name="EnterButton" type="Button" parent="CenterContainer/VBoxContainer"]
+layout_mode = 2
+text = "进入终局结算占位页"

@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "waves": [
+    {
+      "wave_index": 1,
+      "wave_type": "normal",
+      "enemy_roster": [
+        {"unit_id": "enemy_spear_militia", "power": 38, "hp": 120, "atk": 16, "defense": 10},
+        {"unit_id": "enemy_blade_militia", "power": 36, "hp": 110, "atk": 18, "defense": 9},
+        {"unit_id": "enemy_archer_militia", "power": 34, "hp": 95, "atk": 20, "defense": 7}
+      ],
+      "spawn_layout": [
+        {"unit_id": "enemy_spear_militia", "row": 0, "col": 1},
+        {"unit_id": "enemy_blade_militia", "row": 0, "col": 2},
+        {"unit_id": "enemy_archer_militia", "row": 1, "col": 1}
+      ],
+      "wave_modifiers": {"target_power": 120, "difficulty_tag": "intro"}
+    },
+    {
+      "wave_index": 2,
+      "wave_type": "elite",
+      "enemy_roster": [
+        {"unit_id": "enemy_elite_guard", "power": 58, "hp": 180, "atk": 24, "defense": 16},
+        {"unit_id": "enemy_elite_archer", "power": 52, "hp": 150, "atk": 28, "defense": 12},
+        {"unit_id": "enemy_elite_support", "power": 50, "hp": 140, "atk": 22, "defense": 14}
+      ],
+      "spawn_layout": [
+        {"unit_id": "enemy_elite_guard", "row": 0, "col": 1},
+        {"unit_id": "enemy_elite_archer", "row": 1, "col": 2},
+        {"unit_id": "enemy_elite_support", "row": 1, "col": 1}
+      ],
+      "wave_modifiers": {"target_power": 180, "difficulty_tag": "mid_test"}
+    },
+    {
+      "wave_index": 3,
+      "wave_type": "boss",
+      "enemy_roster": [
+        {"unit_id": "enemy_boss_warlord", "power": 120, "hp": 420, "atk": 40, "defense": 24, "is_boss": true},
+        {"unit_id": "enemy_boss_guard_1", "power": 68, "hp": 210, "atk": 26, "defense": 18},
+        {"unit_id": "enemy_boss_guard_2", "power": 66, "hp": 205, "atk": 27, "defense": 17}
+      ],
+      "spawn_layout": [
+        {"unit_id": "enemy_boss_warlord", "row": 0, "col": 1},
+        {"unit_id": "enemy_boss_guard_1", "row": 1, "col": 0},
+        {"unit_id": "enemy_boss_guard_2", "row": 1, "col": 2}
+      ],
+      "wave_modifiers": {"target_power": 260, "difficulty_tag": "final_check"}
+    }
+  ]
+}

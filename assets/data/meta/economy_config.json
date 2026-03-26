@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "reward": {
+    "base": 7,
+    "win_bonus": 3,
+    "wave_bonus_per_wave": 1
+  },
+  "unlock_cost_overrides": {
+    "hint_opening_tactics": 11,
+    "cosmetic_banner_lv1": 13
+  }
+}

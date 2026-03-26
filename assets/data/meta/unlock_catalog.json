@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "items": [
+    {
+      "unlock_id": "hint_opening_tactics",
+      "type": "soft_hint",
+      "cost": 10,
+      "prereq_ids": [],
+      "max_level": 1
+    },
+    {
+      "unlock_id": "cosmetic_banner_lv1",
+      "type": "cosmetic",
+      "cost": 8,
+      "prereq_ids": [],
+      "max_level": 1
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "shop_buy_cost": 3,
+  "shop_refresh_cost": 1,
+  "wave_hp_penalty_by_index": {
+    "1": 2,
+    "2": 3,
+    "3": 5
+  }
+}

@@ -1,0 +1,97 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://src/ui/meta_unlock_placeholder.gd" id="1_2jctn"]
+
+[node name="MetaUnlockPlaceholder" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_2jctn")
+
+[node name="CenterContainer" type="CenterContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="VBoxContainer" type="VBoxContainer" parent="CenterContainer"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="TitleLabel" type="Label" parent="CenterContainer/VBoxContainer"]
+layout_mode = 2
+text = "终局结算与局外解锁"
+horizontal_alignment = 1
+
+[node name="ContentLabel" type="Label" parent="CenterContainer/VBoxContainer"]
+layout_mode = 2
+text = ""
+horizontal_alignment = 1
+
+[node name="GuideLabel" type="Label" parent="CenterContainer/VBoxContainer"]
+layout_mode = 2
+text = ""
+horizontal_alignment = 1
+
+[node name="MetaPointLabel" type="Label" parent="CenterContainer/VBoxContainer"]
+layout_mode = 2
+text = ""
+horizontal_alignment = 1
+
+[node name="SettleButton" type="Button" parent="CenterContainer/VBoxContainer"]
+layout_mode = 2
+text = "领取本局结算点数"
+
+[node name="UnlockStatusLabel" type="Label" parent="CenterContainer/VBoxContainer"]
+layout_mode = 2
+text = ""
+horizontal_alignment = 1
+
+[node name="UnlockButton" type="Button" parent="CenterContainer/VBoxContainer"]
+layout_mode = 2
+text = "解锁：开局战术提示"
+
+[node name="UnlockStatusLabel2" type="Label" parent="CenterContainer/VBoxContainer"]
+layout_mode = 2
+text = ""
+horizontal_alignment = 1
+
+[node name="UnlockButton2" type="Button" parent="CenterContainer/VBoxContainer"]
+layout_mode = 2
+text = "解锁：军演旗帜外观"
+
+[node name="SaveButton" type="Button" parent="CenterContainer/VBoxContainer"]
+layout_mode = 2
+text = "保存进度"
+
+[node name="ReloadButton" type="Button" parent="CenterContainer/VBoxContainer"]
+layout_mode = 2
+text = "重载进度"
+
+[node name="ExportLogButton" type="Button" parent="CenterContainer/VBoxContainer"]
+layout_mode = 2
+text = "导出诊断日志"
+
+[node name="ResultLabel" type="Label" parent="CenterContainer/VBoxContainer"]
+layout_mode = 2
+text = ""
+horizontal_alignment = 1
+
+[node name="LogLabel" type="Label" parent="CenterContainer/VBoxContainer"]
+layout_mode = 2
+text = ""
+horizontal_alignment = 1
+
+[node name="BackHintLabel" type="Label" parent="CenterContainer/VBoxContainer"]
+layout_mode = 2
+text = "按 Esc 返回主界面"
+horizontal_alignment = 1
+
+[node name="BackButton" type="Button" parent="CenterContainer/VBoxContainer"]
+layout_mode = 2
+text = "返回主界面"
